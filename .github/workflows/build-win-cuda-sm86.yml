@@ -18,32 +18,39 @@ jobs:
           cuda_version: '12.4'
           cuda_arch: 'x64'
 
-      - name: Configure
+      - name: Install Ninja
         shell: pwsh
-        run: |
-          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
-            -DGGML_CUDA=ON `
-            -DGGML_CUDA_CUB_3DOT2=ON `
-            -DCMAKE_CUDA_ARCHITECTURES=86 `
-            "-DCMAKE_CUDA_FLAGS=-allow-unsupported-compiler" `
-            -DGGML_NATIVE=OFF `
-            -DLLAMA_CURL=OFF `
-            -DLLAMA_BUILD_TESTS=OFF `
-            -DLLAMA_BUILD_EXAMPLES=OFF `
-            -DLLAMA_BUILD_UI=OFF `
-            -DLLAMA_USE_PREBUILT_UI=OFF
+        run: choco install ninja -y --no-progress
 
       - name: Build
-        shell: pwsh
+        shell: cmd
         run: |
+          call "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Auxiliary\Build\vcvarsall.bat" x64
+          cmake -S . -B build -G "Ninja Multi-Config" ^
+            -DGGML_BACKEND_DL=ON ^
+            -DGGML_CUDA=ON ^
+            -DGGML_CUDA_CUB_3DOT2=ON ^
+            -DCMAKE_CUDA_ARCHITECTURES=86 ^
+            -DCMAKE_CUDA_FLAGS="-allow-unsupported-compiler" ^
+            -DGGML_NATIVE=OFF ^
+            -DLLAMA_CURL=OFF ^
+            -DLLAMA_BUILD_TESTS=OFF ^
+            -DLLAMA_BUILD_EXAMPLES=OFF ^
+            -DLLAMA_BUILD_UI=OFF ^
+            -DLLAMA_USE_PREBUILT_UI=OFF
+          if errorlevel 1 exit /b 1
           cmake --build build --config Release --parallel 2 --target llama-server llama-cli llama-bench llama-moe-trace
+          if errorlevel 1 exit /b 1
 
       - name: Package
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force out | Out-Null
-          Copy-Item build\bin\Release\*.exe out\
-          Copy-Item build\bin\Release\*.dll out\
+          $bin = "build\bin\Release"
+          if (-not (Test-Path $bin)) { $bin = "build\bin" }
+          Write-Host "Packaging from $bin"
+          Copy-Item "$bin\*.exe" out\
+          Copy-Item "$bin\*.dll" out\
           Copy-Item LICENSE out\
           Compress-Archive -Path out\* -DestinationPath llama-ni-win-cuda12-sm86.zip -CompressionLevel Optimal
           Get-Item llama-ni-win-cuda12-sm86.zip | Select-Object Name, Length
