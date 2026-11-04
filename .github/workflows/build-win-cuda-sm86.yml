@@ -1,0 +1,55 @@
+name: build-windows-cuda-sm86
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup CUDA 12.4
+        uses: ./.github/actions/windows-setup-cuda
+        with:
+          cuda_version: '12.4'
+          cuda_arch: 'x64'
+
+      - name: Configure
+        shell: pwsh
+        run: |
+          cmake -S . -B build -G "Visual Studio 17 2022" -A x64 `
+            -DGGML_CUDA=ON `
+            -DGGML_CUDA_CUB_3DOT2=ON `
+            -DCMAKE_CUDA_ARCHITECTURES=86 `
+            "-DCMAKE_CUDA_FLAGS=-allow-unsupported-compiler" `
+            -DGGML_NATIVE=OFF `
+            -DLLAMA_CURL=OFF `
+            -DLLAMA_BUILD_TESTS=OFF `
+            -DLLAMA_BUILD_EXAMPLES=OFF `
+            -DLLAMA_BUILD_UI=OFF `
+            -DLLAMA_USE_PREBUILT_UI=OFF
+
+      - name: Build
+        shell: pwsh
+        run: |
+          cmake --build build --config Release --parallel 2 --target llama-server llama-cli llama-bench llama-moe-trace
+
+      - name: Package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item build\bin\Release\*.exe out\
+          Copy-Item build\bin\Release\*.dll out\
+          Copy-Item LICENSE out\
+          Compress-Archive -Path out\* -DestinationPath llama-ni-win-cuda12-sm86.zip -CompressionLevel Optimal
+          Get-Item llama-ni-win-cuda12-sm86.zip | Select-Object Name, Length
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: llama-ni-win-cuda12-sm86
+          path: llama-ni-win-cuda12-sm86.zip
+          retention-days: 7
