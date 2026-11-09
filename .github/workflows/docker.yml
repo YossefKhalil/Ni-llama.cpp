@@ -17,8 +17,10 @@ on:
         type: boolean
         default: false
   schedule:
-    # Rebuild daily rather than on every push because it is expensive
-    - cron: '12 4 * * *'
+    # Rebuild weekly rather than on every push because it is expensive.
+    # The full Docker matrix is heavy, so run it once a week (Sunday 04:12 UTC).
+    # Use workflow_dispatch for manual runs.
+    - cron: '12 4 * * 0'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref && github.ref || github.run_id }}
